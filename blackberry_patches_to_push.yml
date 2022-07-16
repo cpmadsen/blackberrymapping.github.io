@@ -1,0 +1,12 @@
+..generic:
+  git2rdata: 0.4.0
+  optimize: yes
+  NA string: NA
+  hash: a5b6607b059d0241048344685a0041a4a040fe9a
+  data_hash: 818739813ca204a94853448ea0c53e92921516dd
+location:
+  class: character
+productivity:
+  class: character
+my_geom:
+  class: character
