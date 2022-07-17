@@ -1,0 +1,16 @@
+..generic:
+  git2rdata: 0.4.0
+  optimize: yes
+  NA string: NA
+  hash: 390275b950832ab0f15253b6ec55de3eb4379c61
+  data_hash: 406ad156ff7bc460b7f7cc2f3a908b4f45043a0b
+location:
+  class: character
+productivity:
+  class: character
+my_geom:
+  class: character
+patch_number:
+  class: integer
+my_geom:
+  class: character
