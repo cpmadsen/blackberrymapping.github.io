@@ -23,12 +23,14 @@ library(git2rdata)
 # my_geom = st_as_text(st_sfc(dat$geometry)) #Get geometry as text.
 # my_fields = st_drop_geometry(dat)
 # dat_to_write = cbind(my_fields, my_geom)
-# dat_to_write = dat_to_write %>% 
+# dat_to_write = dat_to_write %>%
 #     mutate(patch_number = row_number())
 # 
 # repo <- repository("F:/R Projects/blackberrymapping.github.io")
-# write_vc(dat_to_write, file = "blackberry_patches", root = repo, stage = TRUE)
-# commit(repo, message = paste0("Updated data on ",Sys.time()))
+# write_vc(dat_to_write, file = "blackberry_patches", 
+#          strict = F,
+#          root = repo, stage = TRUE)
+# commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
 # push(repo,credentials = git2r::cred_user_pass('cpmadsen', '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'))
 
 # write_sf(dat, "blackberry_patches.gpkg")
@@ -264,7 +266,9 @@ server <- function(input, output) {
         dat_to_write = dat_to_write %>% 
             mutate(patch_number = row_number())
         
-        write_vc(dat_to_write, file = "blackberry_patches", root = repo, stage = TRUE)
+        write_vc(dat_to_write, file = "blackberry_patches", 
+                 strict = F,
+                 root = repo, stage = TRUE)
         commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
         push(repo,credentials = git2r::cred_user_pass('cpmadsen', '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'))
     })
