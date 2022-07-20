@@ -28,7 +28,7 @@ dat_to_write = dat_to_write %>%
 
 repo <- repository("F:/R Projects/blackberrymapping.github.io")
 write_vc(dat_to_write, file = "blackberry_patches",
-         strict = F,
+         #strict = F,
          root = repo, stage = TRUE)
 commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
 push(repo,credentials = git2r::cred_user_pass('cpmadsen', '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'))
@@ -255,7 +255,7 @@ server <- function(input, output) {
     })
     
     output$data_as_table = renderDataTable({
-        DatJoined() %>% st_drop_geometry()
+        DatJoined()
     })
     #Upload data to github.
     observeEvent(input$upload_to_github, {
