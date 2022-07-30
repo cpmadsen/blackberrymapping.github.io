@@ -7,38 +7,18 @@
 
 server <- function(input, output) {
   
-  repo <- repository("F:/R Projects/blackberrymapping.github.io")
+  # Getting the url for the database file on google drive
+  fid <- as_id('https://drive.google.com/file/d/1A3SQjyXHgkBRwxwGynzdSnPlY0J0eyNx/view?usp=sharing')
+  # Creating a download link from the file ID
+  fpath <- paste0('https://drive.google.com/uc?export=download&id=', fid)
+  # Downloading into tempfile
+  temp <- tempfile()
+  download.file(fpath, temp)
+  
   
   Dat = reactive({
-    #Reading data from github.
-    dat = read_vc(file = "blackberry_patches", root = repo)
-    
-    #Wrangle text column of geometry into sf geometry column.
-    dat = dat %>% 
-      mutate(coords = list(paste0(
-        str_extract_all(strsplit(my_geom, ", ")[[1]],"^[0-9]*\\.[0-9]*"),
-        ", ",
-        str_extract_all(strsplit(my_geom, ", ")[[1]],"(-)?[0-9]*\\.[0-9]*$")))) %>% 
-      select(-my_geom) %>%
-      unnest_longer(col = c("coords")) %>% 
-      mutate(lat = str_extract(coords, ".*(?=,)"),
-             lon = str_extract(coords, "(?<=,).*")) %>% 
-      group_by(patch_number) %>% 
-      mutate(lat = replace(lat, lat == "character(0)", last(lat)),
-             lon = replace(lon, lon == " character(0)", dplyr::first(lon))) %>% 
-      select(-coords) %>% 
-      mutate(lat = as.numeric(lat),
-             lon = as.numeric(lon))
-    
-    #Convert to sf object!
-    dat = st_as_sf(dat,
-                   coords = c("lon","lat"), 
-                   crs = 4326) %>%
-      group_by(location, productivity, patch_number) %>%  
-      summarise() %>% 
-      st_convex_hull()
-    
-    dat
+    dat <- suppressMessages(st_read(temp))
+    return(dat)
   })
   
   #Make UI for filtering data by location.
@@ -104,25 +84,7 @@ server <- function(input, output) {
                   label = ~paste0(location,": ",productivity)
       )
   })
-  # 
-  # #If user uploads their own shapefile / gpkg, add to Dat and map.
-  # observe({
-  #         if(length(UserPoly()) >= 1){
-  #             if(st_geometry_type(UserPoly()) %in% c("POLYGON","MULTIPOLYGON")){
-  #                 
-  #                 #Add user polygon to reactive Dat object.
-  #                 Dat = reactive({
-  #                     Dat() %>% bind_rows(UserPoly())
-  #                     })
-  #                 
-  #                 leafletProxy("leafmap") %>% 
-  #                     clearShapes() %>% 
-  #                     addPolygons(Dat())
-  #             }
-  #         }
-  # })
-  # 
-  
+
   DrawnPoly = reactive(NULL)
   
   #If user draws a polygon and enters info, add to Dat.
@@ -140,19 +102,9 @@ server <- function(input, output) {
     
     drawn_poly
   })
-  # 
-  # #If the user presses add_drawn_poly button, write data to github.
-  # output$submission_error_message = renderText(paste(str_count(input$drawn_patch_name,"[a-zA-Z]")))
-  # output$submission_error_message = renderTable({
-  #     Dat() %>% 
-  #         bind_rows(
-  #             DrawnPoly() %>% 
-  #                 mutate(location = "Test",
-  #                        productivity = "Low")
-  #         )
-  # })
-  
-  # #Once the user presses 'add drawn poly', join this poly to the original dataset.
+
+  # #Once the user presses 'add drawn poly', join this poly to the original
+  # dataset.
   DatJoined = eventReactive(input$add_drawn_poly, {
     
     # # # # # # # # # # # #
@@ -193,16 +145,10 @@ server <- function(input, output) {
   #Upload data to github.
   observeEvent(input$upload_to_github, {
     
-    my_geom = st_as_text(st_sfc(DatJoined()$my_geom)) #Get geometry as text.
-    my_fields = st_drop_geometry(DatJoined())
-    dat_to_write = cbind(my_fields, my_geom)
-    dat_to_write = dat_to_write %>% 
-      mutate(patch_number = row_number())
+    #Update local geoJSON file.
+    st_write(DatJoined(), paste0(temp, '.geojson'))
     
-    write_vc(dat_to_write, file = "blackberry_patches", 
-             strict = F,
-             root = repo, stage = TRUE)
-    commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
-    push(repo)
+    #'push' updated geoJSON file to google drive.
+    drive_update(fid, paste0(temp, '.geojson'))
   })
 }
