@@ -31,9 +31,9 @@ write_vc(dat_to_write, file = "blackberry_patches",
          #strict = F,
          root = repo, stage = TRUE)
 commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
-push(repo,credentials = git2r::cred_user_pass('cpmadsen', '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'))
+#push(repo)
 
-# write_sf(dat, "blackberry_patches.gpkg")
+write_sf(dat, "blackberry_patches.gpkg")
 
 
 # Define UI for application that draws a histogram
@@ -270,7 +270,7 @@ server <- function(input, output) {
                  strict = F,
                  root = repo, stage = TRUE)
         commit(repo, all = T, message = paste0("Updated data on ",Sys.time()))
-        push(repo,credentials = git2r::cred_user_pass('cpmadsen', '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'))
+        push(repo)
     })
 }
 
