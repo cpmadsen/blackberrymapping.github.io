@@ -2,4 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-.blackberrymapping.github.io.Rproj
+*.Rproj
+*.tsv
+*.yml
