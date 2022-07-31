@@ -31,12 +31,6 @@ server <- function(input, output) {
                 choices = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)))
   })
   
-  #If user has filtered Dat(), apply and make MappingDat()
-  MappingDat = reactive({
-    Dat() %>% 
-      filter(location %in% input$search_filter)
-  })
-  
   UserPoly = reactive({
     user_file = input$user_poly
     if(is.null(user_file)) return(NULL)
@@ -58,6 +52,12 @@ server <- function(input, output) {
     }
   })
   
+  #If user has filtered Dat(), apply and make MappingDat()
+  MappingDat = reactive({
+    Dat() %>% 
+      filter(location %in% input$search_filter)
+  })
+  
   output$leafmap <- renderLeaflet({
     leaflet() %>%
       addProviderTiles("Esri.WorldImagery",
@@ -71,12 +71,18 @@ server <- function(input, output) {
       leaflet.extras::addResetMapButton() %>%
       leaflet.extras::addDrawToolbar(targetLayerId = ,
                                      singleFeature = T,
+                                     polylineOptions = F,
+                                     circleOptions = F,
+                                     #circleMarkerOptions = F,
+                                     rectangleOptions = F,
                                      editOptions  = editToolbarOptions()) %>% 
       hideGroup(c("Satellite")) %>% 
       addLayersControl(baseGroups = c("OSM","Satellite"),
                        options = layersControlOptions(collapsed = F))
   })
   
+  #Reactively populate the map with polygons (or buffered points)
+  # that map users have added.
   observe({
     leafletProxy("leafmap") %>% 
       clearShapes() %>% 
@@ -87,7 +93,7 @@ server <- function(input, output) {
 
   DrawnPoly = reactive(NULL)
   
-  #If user draws a polygon and enters info, add to Dat.
+  #If user draws a polygon or a single marker and enters info, add to Dat.
   DrawnPoly = eventReactive(input$leafmap_draw_new_feature, {
     
     drawn_poly = as.data.frame(matrix(unlist(input$leafmap_draw_new_feature$geometry$coordinates), ncol = 2, byrow = T))
@@ -96,9 +102,32 @@ server <- function(input, output) {
     
     drawn_poly = st_as_sf(drawn_poly, coords = c("lon","lat"), crs = 4326)
     
-    drawn_poly = drawn_poly %>%
-      summarise(geometry = st_combine(geometry)) %>%
-      st_cast("POLYGON")
+    #If it's a single row of coordinates, i.e. a marker, make a box around point..
+    if(nrow(drawn_poly) == 1){
+      
+      #Convert to a projection system that uses meters.
+      drawn_poly_nad83 = st_transform(drawn_poly, crs = 3005)
+      
+      #Snag coordinates from marker.
+      lon_coord = unlist(map(drawn_poly_nad83$geometry, 1))
+      lat_coord = unlist(map(drawn_poly_nad83$geometry, 2))
+
+      #Make a 1-meter-squared box around marker.
+      drawn_poly = st_as_sf(data.frame(lon = c(lon_coord-0.5, lon_coord+0.5),
+                                       lat = c(lat_coord-0.5, lat_coord+0.5)),
+                            coords = c("lon", "lat"), 
+                            crs = 3005) %>% 
+        st_bbox() %>% 
+        st_as_sfc() %>% 
+        st_as_sf() %>% 
+        st_transform(crs = 4326) %>% 
+        rename(geometry = x)
+    }else{
+      #And if it's a polygon, take points, combine them and cast to polygon.
+      drawn_poly = drawn_poly %>%
+        summarise(geometry = st_combine(geometry)) %>%
+        st_cast("POLYGON")
+    }
     
     drawn_poly
   })
