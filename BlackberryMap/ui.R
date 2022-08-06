@@ -38,7 +38,7 @@ ui <- fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-      leafletOutput("leafmap"),
+      leafletOutput("leafmap", height = 500),
       dataTableOutput('data_as_table')
     )
   )

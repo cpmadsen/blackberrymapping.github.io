@@ -19,16 +19,15 @@ server <- function(input, output) {
   muns = read_sf('www/municipalities.shp') %>% st_transform(crs = 4326)
   Neighbourhood_Coords = reactive({
     if(input$neighbourhood_selection == "All"){
-      data.frame(lat = 48.55, lon = -123.340, zoom = 9.5)
+      data.frame(lat = 48.51, lon = -123.340, zoom = 9.5)
     }else{
       muns %>% 
         filter(ABRVN == input$neighbourhood_selection) %>% 
         st_centroid() %>% 
-        # pull(geometry) %>%
         st_coordinates() %>% 
         as_tibble() %>% 
         rename(lon = X, lat = Y) %>% 
-        mutate(zoom = 11)
+        mutate(zoom = 11.5)
     }
   })
   
@@ -73,9 +72,10 @@ server <- function(input, output) {
                        options = providerTileOptions(minZoom = 2, maxZoom = 19)) %>%
       addScaleBar(position = "bottomright") %>%
       addPolygons(data = muns,
-                  fillColor = 'blue',
+                  fillColor = 'transparent',
                   color = "black",
                   weight = 2,
+                  label = ~ABRVN,
                   opacity = 0.25,
                   group = 'Neighbourhoods'
                   ) %>% 
@@ -83,7 +83,7 @@ server <- function(input, output) {
                   label = ~paste0(location,": ",productivity),
                   layerId = 'all_patches'
       ) %>% 
-      setView(lat = 48.55, -123.340, zoom = 9.5) %>%
+      setView(lat = 48.51, -123.340, zoom = 9.5) %>%
       leaflet.extras::addResetMapButton() %>%
       leaflet.extras::addDrawToolbar(targetLayerId = ,
                                      singleFeature = T,
@@ -102,8 +102,6 @@ server <- function(input, output) {
   # that map users have added.
   observe({
     leafletProxy("leafmap") %>% 
-      #removeShape(layerId = 'all_patches') %>% 
-      #clearShapes() %>% 
       setView(lat = Neighbourhood_Coords()$lat,
               lng = Neighbourhood_Coords()$lon,
               zoom = Neighbourhood_Coords()$zoom)
