@@ -15,20 +15,25 @@ server <- function(input, output) {
   temp <- tempfile()
   download.file(fpath, temp)
   
+  #Import municipality / neighbourhood spatial file.
+  muns = read_sf('www/municipalities.shp') %>% st_transform(crs = 4326)
+  Neighbourhood_Coords = reactive({
+    if(input$neighbourhood_selection == "All"){
+      data.frame(lat = 48.51, lon = -123.340, zoom = 9.5)
+    }else{
+      muns %>% 
+        filter(ABRVN == input$neighbourhood_selection) %>% 
+        st_centroid() %>% 
+        st_coordinates() %>% 
+        as_tibble() %>% 
+        rename(lon = X, lat = Y) %>% 
+        mutate(zoom = 11.5)
+    }
+  })
   
   Dat = reactive({
     dat <- suppressMessages(st_read(temp))
     return(dat)
-  })
-  
-  #Make UI for filtering data by location.
-  output$searchbar = renderUI({
-    selectInput(inputId = "search_filter",
-                label = "",
-                multiple = T,
-                selectize = T,
-                selected = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)),
-                choices = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)))
   })
   
   UserPoly = reactive({
@@ -54,8 +59,7 @@ server <- function(input, output) {
   
   #If user has filtered Dat(), apply and make MappingDat()
   MappingDat = reactive({
-    Dat() %>% 
-      filter(location %in% input$search_filter)
+    Dat()
   })
   
   output$leafmap <- renderLeaflet({
@@ -67,7 +71,19 @@ server <- function(input, output) {
                        group = "OSM",
                        options = providerTileOptions(minZoom = 2, maxZoom = 19)) %>%
       addScaleBar(position = "bottomright") %>%
-      setView(lat = 48.55, -123.340, zoom = 9.5) %>%
+      addPolygons(data = muns,
+                  fillColor = 'transparent',
+                  color = "black",
+                  weight = 2,
+                  label = ~ABRVN,
+                  opacity = 0.25,
+                  group = 'Neighbourhoods'
+                  ) %>% 
+      addPolygons(data = MappingDat(),
+                  label = ~paste0(location,": ",productivity),
+                  layerId = 'all_patches'
+      ) %>% 
+      setView(lat = 48.51, -123.340, zoom = 9.5) %>%
       leaflet.extras::addResetMapButton() %>%
       leaflet.extras::addDrawToolbar(targetLayerId = ,
                                      singleFeature = T,
@@ -78,6 +94,7 @@ server <- function(input, output) {
                                      editOptions  = editToolbarOptions()) %>% 
       hideGroup(c("Satellite")) %>% 
       addLayersControl(baseGroups = c("OSM","Satellite"),
+                       overlayGroups = c("Neighbourhoods"),
                        options = layersControlOptions(collapsed = F))
   })
   
@@ -85,10 +102,9 @@ server <- function(input, output) {
   # that map users have added.
   observe({
     leafletProxy("leafmap") %>% 
-      clearShapes() %>% 
-      addPolygons(data = MappingDat(),
-                  label = ~paste0(location,": ",productivity)
-      )
+      setView(lat = Neighbourhood_Coords()$lat,
+              lng = Neighbourhood_Coords()$lon,
+              zoom = Neighbourhood_Coords()$zoom)
   })
 
   DrawnPoly = reactive(NULL)
@@ -160,7 +176,8 @@ server <- function(input, output) {
         bind_rows(
           DrawnPoly() %>%
             mutate(location = input$drawn_patch_name,
-                   productivity = input$drawn_patch_richness)
+                   productivity = input$drawn_patch_richness) %>% 
+            st_join(muns %>% select(ABRVN))
         ) %>% 
         mutate(patch_number = row_number())
       

@@ -14,8 +14,12 @@ ui <- fluidPage(
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
     sidebarPanel(
-      h3("Search for a patch"),
-      uiOutput('searchbar'),
+      h3("Zoom to Municipality"),
+      selectInput(inputId = "neighbourhood_selection",
+                  label = "",
+                  selected = 'All',
+                  selectize = F,
+                  choices = c('All',muns$ABRVN)),
       h3("Have a blackberry patch \n you'd like to add?"),
       h4("Find and draw it on the map, \nname it and classify it, \nthen click Add Patch!"),
       h3("Describe New Patch"),
@@ -34,7 +38,7 @@ ui <- fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-      leafletOutput("leafmap"),
+      leafletOutput("leafmap", height = 500),
       dataTableOutput('data_as_table')
     )
   )
