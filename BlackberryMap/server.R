@@ -73,7 +73,7 @@ server <- function(input, output) {
                                      singleFeature = T,
                                      polylineOptions = F,
                                      circleOptions = F,
-                                     #circleMarkerOptions = F,
+                                     markerOptions = F,
                                      rectangleOptions = F,
                                      editOptions  = editToolbarOptions()) %>% 
       hideGroup(c("Satellite")) %>% 
