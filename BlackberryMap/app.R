@@ -14,7 +14,6 @@ library(googledrive)
 # ==== Calling setup scripts ====
 source('BlackberryMap/ui.R')
 source('BlackberryMap/server.R')
-source('BlackberryMap/create_test_data.R')
 
 # ==== Setting authentication options ====
 options(
