@@ -10,6 +10,12 @@ library(sf)
 library(leaflet)
 library(leaflet.extras)
 library(googledrive)
+library(mapview)
+library(htmlwidgets)
+if(webshot::is_phantomjs_installed() == F){webshot::install_phantomjs()}
+
+# ==== 
+muns = sf::read_sf('BlackberryMap/www/municipalities.shp') %>% st_transform(crs = 4326)
 
 # ==== Calling setup scripts ====
 source('BlackberryMap/ui.R')

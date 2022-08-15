@@ -15,50 +15,88 @@ server <- function(input, output) {
   temp <- tempfile()
   download.file(fpath, temp)
   
+  #Read in the municipalities geopackage from the www/ folder.
+  muns = read_sf('www/municipalities.shp') %>% st_transform(crs = 4326)
+  
+  #Create the UI selector for neighbourhoods.
+  # output$neigh_sel_UI = renderUI({
+  #   selectInput(inputId = "neighbourhood_selection",
+  #               label = "",
+  #               selected = 'All',
+  #               selectize = F,
+  #               choices = c('All',muns$ABRVN))
+  # })
+  
+  Neighbourhood_Coords = reactive({
+    if(input$neighbourhood_selection == "All"){
+      data.frame(lat = 48.51, lon = -123.340, zoom = 9.5)
+    }else{
+      muns %>% 
+        filter(ABRVN == input$neighbourhood_selection) %>% 
+        st_centroid() %>% 
+        st_coordinates() %>% 
+        as_tibble() %>% 
+        rename(lon = X, lat = Y) %>% 
+        mutate(zoom = 11.5)
+    }
+  })
   
   Dat = reactive({
     dat <- suppressMessages(st_read(temp))
     return(dat)
   })
   
-  #Make UI for filtering data by location.
-  output$searchbar = renderUI({
-    selectInput(inputId = "search_filter",
-                label = "",
-                multiple = T,
-                selectize = T,
-                selected = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)),
-                choices = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)))
-  })
+  # #Make UI for filtering data by location.
+  # output$searchbar = renderUI({
+  #   selectInput(inputId = "search_filter",
+  #               label = "",
+  #               multiple = T,
+  #               selectize = T,
+  #               selected = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)),
+  #               choices = unique(Dat() %>% arrange(location) %>% dplyr::pull(location)))
+  # })
   
-  UserPoly = reactive({
-    user_file = input$user_poly
-    if(is.null(user_file)) return(NULL)
-    #If user uploads geopackage, read in and add to dat.
-    if(str_detect(user_file$datapath, ".gpkg")){
-      userpoly = read_sf(user_file$datapath) %>% 
-        st_transform(crs = 4326)
-      
-      userpoly
-    }
-    #If user uploads zipped shapefile, unzip then read in.
-    if(str_detect(user_file$datapath, ".zip")){
-      
-      filelist = unzip(user_file$datapath)
-      userpoly = read_sf(filelist[str_detect(filelist, ".shp")]) %>% 
-        st_transform(crs = 4326)
-      
-      userpoly
-    }
-  })
+  # UserPoly = reactive({
+  #   user_file = input$user_poly
+  #   if(is.null(user_file)) return(NULL)
+  #   #If user uploads geopackage, read in and add to dat.
+  #   if(str_detect(user_file$datapath, ".gpkg")){
+  #     userpoly = read_sf(user_file$datapath) %>% 
+  #       st_transform(crs = 4326)
+  #     
+  #     userpoly
+  #   }
+  #   #If user uploads zipped shapefile, unzip then read in.
+  #   if(str_detect(user_file$datapath, ".zip")){
+  #     
+  #     filelist = unzip(user_file$datapath)
+  #     userpoly = read_sf(filelist[str_detect(filelist, ".shp")]) %>% 
+  #       st_transform(crs = 4326)
+  #     
+  #     userpoly
+  #   }
+  # })
   
   #If user has filtered Dat(), apply and make MappingDat()
   MappingDat = reactive({
     Dat() %>% 
-      filter(location %in% input$search_filter)
+      filter(productivity %in% input$prod_filter)
   })
   
-  output$leafmap <- renderLeaflet({
+  my.pal = reactive({
+    colorFactor(palette = c("#8d8b43",
+                            "#e91434",
+                            "#262d4b"),
+                domain = Dat() %>% 
+                  mutate(productivity = factor(productivity,
+                                               levels = c("Low","Medium","High"))) %>% 
+                  st_drop_geometry() %>% 
+                  select(productivity) %>% 
+                  distinct() %>% 
+                  pull(productivity))
+  })
+  
+  foundationalMap = reactive({
     leaflet() %>%
       addProviderTiles("Esri.WorldImagery",
                        group = "Satellite",
@@ -67,6 +105,21 @@ server <- function(input, output) {
                        group = "OSM",
                        options = providerTileOptions(minZoom = 2, maxZoom = 19)) %>%
       addScaleBar(position = "bottomright") %>%
+      addLegend(pal = my.pal(),
+                values = Dat()$productivity) %>% 
+      addPolygons(data = muns,
+                  fillColor = 'transparent',
+                  color = "black",
+                  weight = 2,
+                  label = ~ABRVN,
+                  opacity = 0.25,
+                  group = 'Neighbourhoods'
+      ) %>% 
+      addPolygons(data = MappingDat(),
+                  label = ~paste0(location,": ",productivity),
+                  color = my.pal()(MappingDat()$productivity),
+                  fillColor = my.pal()(MappingDat()$productivity),
+                  layerId = 'all_patches') %>% 
       setView(lat = 48.55, -123.340, zoom = 9.5) %>%
       leaflet.extras::addResetMapButton() %>%
       leaflet.extras::addDrawToolbar(targetLayerId = ,
@@ -78,19 +131,54 @@ server <- function(input, output) {
                                      editOptions  = editToolbarOptions()) %>% 
       hideGroup(c("Satellite")) %>% 
       addLayersControl(baseGroups = c("OSM","Satellite"),
+                       overlayGroups = "Neighbourhoods",
                        options = layersControlOptions(collapsed = F))
   })
   
-  #Reactively populate the map with polygons (or buffered points)
-  # that map users have added.
+  output$leafmap <- renderLeaflet({ 
+    foundationalMap()
+    })
+  
+  #Reactively zoom in to selected neighbourhood.
   observe({
     leafletProxy("leafmap") %>% 
-      clearShapes() %>% 
-      addPolygons(data = MappingDat(),
-                  label = ~paste0(location,": ",productivity)
-      )
+      setView(lat = Neighbourhood_Coords()$lat,
+              lng = Neighbourhood_Coords()$lon,
+              zoom = Neighbourhood_Coords()$zoom)
   })
 
+  # Store the current user's view of the Leaflet map for 
+  # download in a reactive expression
+  user.created.map <- reactive({
+    
+    # call the foundational Leaflet map
+    foundationalMap() %>%
+      
+      # store the view based on UI
+      setView(lng = input$map_center$lng,
+              lat = input$map_center$lat,
+              zoom = input$map_zoom)
+  })
+  
+  # create the output file name
+  # and specify how the download button will take
+  # a screenshot - using the mapview::mapshot() function
+  # and save as a PDF
+  output$DownloadMap <- downloadHandler(
+    filename = paste0(Sys.Date(),"_blackberryMap.pdf"), 
+    content = function(file) {
+      owd <- setwd(tempdir())
+      on.exit(setwd(owd))
+      htmlwidgets::saveWidget(user.created.map(), "temp.html", selfcontained = FALSE)
+      #webshot::webshot("temp.html", file = file, cliprect = "viewport")
+      # mapview::mapshot( x = user.created.map(), 
+      #          file = file,
+      #          cliprect = "viewport", # the clipping rectangle matches the height & width from the viewing port
+      #          selfcontained = FALSE # when this was not specified, the function for produced a PDF of two pages: one of the leaflet map, the other a blank page.
+      #)
+    } # end of content() function
+  ) # end of downloadHandler() function
+  
   DrawnPoly = reactive(NULL)
   
   #If user draws a polygon or a single marker and enters info, add to Dat.
@@ -160,9 +248,11 @@ server <- function(input, output) {
         bind_rows(
           DrawnPoly() %>%
             mutate(location = input$drawn_patch_name,
-                   productivity = input$drawn_patch_richness)
+                   productivity = input$drawn_patch_richness) %>% 
+            st_join(muns %>% select(ABRVN) %>% rename(neighbourhood = ABRVN))
         ) %>% 
-        mutate(patch_number = row_number())
+        mutate(patch_number = row_number()) %>% 
+        mutate(date_added = as.Date(Sys.Date()))
       
       return(dat_with_new_row)
     }
